@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -74,7 +75,7 @@ func GenerateProvisioningRequest(ctx context.Context, ndbclient *ndbclient.NDBCl
 		}
 		log.Error(err, errStatement)
 	}
-	
+
 	// Creating a provisioning request based on the database type
 	req = &DatabaseProvisionRequest{
 		DatabaseType:             GetDatabaseEngineName(dbSpec.Instance.Type),
@@ -100,6 +101,28 @@ func GenerateProvisioningRequest(ctx context.Context, ndbclient *ndbclient.NDBCl
 			Tags:             make([]string, 0),
 			AutoTuneLogDrive: true,
 		},
+		ActionArguments: []ActionArgument{
+			{
+				Name:  "database_size",
+				Value: strconv.Itoa(dbSpec.Instance.Size),
+			},
+			{
+				Name:  "auto_tune_staging_drive",
+				Value: "true",
+			},
+			{
+				Name:  "dbserver_description",
+				Value: "dbserver for " + dbSpec.Instance.DatabaseInstanceName,
+			},
+			{
+				Name:  "database_names",
+				Value: database_names,
+			},
+			{
+				Name:  "db_password",
+				Value: dbPassword,
+			},
+		},
 		Nodes: []Node{
 			{
 				Properties: make([]string, 0),
@@ -107,18 +130,16 @@ func GenerateProvisioningRequest(ctx context.Context, ndbclient *ndbclient.NDBCl
 			},
 		},
 	}
-	// Setting action arguments based on database type
-	actionArgs := make([]ActionArgument, 0)
 
-	if dbSpec.Instance.Type == "mysql" {
-		actionArgs = []ActionArgument{
+	// Setting action arguments based on database type
+	dbActionArgsMap := map[string][]ActionArgument{
+		DATABASE_TYPE_MYSQL: {
 			{
 				Name:  "listener_port",
 				Value: "3306",
 			},
-		}
-	} else {
-		actionArgs = []ActionArgument{
+		},
+		DATABASE_TYPE_POSTGRES: {
 			{
 				Name:  "proxy_read_port",
 				Value: "5001",
@@ -139,37 +160,19 @@ func GenerateProvisioningRequest(ctx context.Context, ndbclient *ndbclient.NDBCl
 				Name:  "backup_policy",
 				Value: "primary_only",
 			},
-		}
+		},
+		DATABASE_TYPE_MONGODB: {
+			// Define action arguments for mongodb here
+		},
 	}
 
-	actionArgs = append(actionArgs, []ActionArgument{
-		{
-			Name:  "database_size",
-			Value: strconv.Itoa(dbSpec.Instance.Size),
-		},
-		{
-			Name:  "auto_tune_staging_drive",
-			Value: "true",
-		},
-		{
-			Name:  "dbserver_description",
-			Value: "dbserver for " + dbSpec.Instance.DatabaseInstanceName,
-		},
-		{
-			Name:  "database_names",
-			Value: database_names,
-		},
-		{
-			Name:  "db_password",
-			Value: dbPassword,
-		},
-	}...)
+	for _, arg := range dbActionArgsMap[dbSpec.Instance.Type] {
+		req.ActionArguments = append(req.ActionArguments, arg)
+	}
 
-	req.ActionArguments = actionArgs
-
-	//Printing out json body which is sent to ndb_api
-	// jsonString, err := json.MarshalIndent(req, "", "  ")
-	// fmt.Println(string(jsonString))
+	// Printing out json body which is sent to ndb_api
+	jsonString, err := json.MarshalIndent(req, "", "  ")
+	fmt.Println(string(jsonString))
 	log.Info("Returning from ndb_api_helpers.GenerateProvisioningRequest", "database name", dbSpec.Instance.DatabaseInstanceName, "database type", dbSpec.Instance.Type)
 	return
 }
