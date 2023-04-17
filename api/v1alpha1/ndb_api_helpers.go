@@ -131,44 +131,10 @@ func GenerateProvisioningRequest(ctx context.Context, ndbclient *ndbclient.NDBCl
 		},
 	}
 
-	// Setting action arguments based on database type
-	dbActionArgsMap := map[string][]ActionArgument{
-		DATABASE_TYPE_MYSQL: {
-			{
-				Name:  "listener_port",
-				Value: "3306",
-			},
-		},
-		DATABASE_TYPE_POSTGRES: {
-			{
-				Name:  "proxy_read_port",
-				Value: "5001",
-			},
-			{
-				Name:  "listener_port",
-				Value: "5432",
-			},
-			{
-				Name:  "proxy_write_port",
-				Value: "5000",
-			},
-			{
-				Name:  "enable_synchronous_mode",
-				Value: "false",
-			},
-			{
-				Name:  "backup_policy",
-				Value: "primary_only",
-			},
-		},
-		DATABASE_TYPE_MONGODB: {
-			// Define action arguments for mongodb here
-		},
-	}
-
-	for _, arg := range dbActionArgsMap[dbSpec.Instance.Type] {
-		req.ActionArguments = append(req.ActionArguments, arg)
-	}
+	dbTypeActionArgs := GetActionArgumentsByDatabaseType(dbSpec.Instance.Type)
+	if dbTypeActionArgs != nil {
+		req.ActionArguments = append(req.ActionArguments, dbTypeActionArgs.GetActionArguments()...)
+    }
 
 	// Printing out json body which is sent to ndb_api
 	jsonString, err := json.MarshalIndent(req, "", "  ")
@@ -284,4 +250,65 @@ func GenerateDeprovisionDatabaseServerRequest() (req *DatabaseServerDeprovisionR
 		DeleteVmSnapshots: true,
 	}
 	return
+}
+
+func GetActionArgumentsByDatabaseType(databaseType string) DatabaseActionArgs {
+    var dbTypeActionArgs DatabaseActionArgs
+    switch databaseType {
+    case DATABASE_TYPE_MYSQL:
+        dbTypeActionArgs = &MysqlActionArgs{}
+    case DATABASE_TYPE_POSTGRES:
+        dbTypeActionArgs = &PostgresActionArgs{}
+    case DATABASE_TYPE_MONGODB:
+        dbTypeActionArgs = &MongodbActionArgs{}
+    }
+    return dbTypeActionArgs
+}
+
+type DatabaseActionArgs interface {
+    GetActionArguments() []ActionArgument
+}
+
+type MysqlActionArgs struct{}
+
+func (m *MysqlActionArgs) GetActionArguments() []ActionArgument {
+    return []ActionArgument{
+        {
+            Name:  "listener_port",
+            Value: "3306",
+        },
+    }
+}
+
+type PostgresActionArgs struct{}
+
+func (p *PostgresActionArgs) GetActionArguments() []ActionArgument {
+    return []ActionArgument{
+        {
+            Name:  "proxy_read_port",
+            Value: "5001",
+        },
+        {
+            Name:  "listener_port",
+            Value: "5432",
+        },
+        {
+            Name:  "proxy_write_port",
+            Value: "5000",
+        },
+        {
+            Name:  "enable_synchronous_mode",
+            Value: "false",
+        },
+        {
+            Name:  "backup_policy",
+            Value: "primary_only",
+        },
+    }
+}
+
+type MongodbActionArgs struct{}
+
+func (m *MongodbActionArgs) GetActionArguments() []ActionArgument {
+    return []ActionArgument{}
 }
