@@ -261,6 +261,8 @@ func GetActionArgumentsByDatabaseType(databaseType string) DatabaseActionArgs {
 		dbTypeActionArgs = &PostgresActionArgs{}
 	case DATABASE_TYPE_MONGODB:
 		dbTypeActionArgs = &MongodbActionArgs{}
+	default:
+		dbTypeActionArgs = nil
 	}
 	return dbTypeActionArgs
 }
